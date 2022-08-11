@@ -21,8 +21,8 @@ def main():
         host_entry = f"{env}_{readable_name} {ip}"
         hosts_out.write(host_entry + "\n")
         ssh_config_out.write(f"Host ssh_{host_entry}\n")
-        ssh_config_out.write(f"    HostName {ip}")
-        ssh_config_out.write(f"    User root")
+        ssh_config_out.write(f"    HostName {ip}\n")
+        ssh_config_out.write(f"    User root\n")
 
 
 if __name__ == "__main__":
