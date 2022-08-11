@@ -11,6 +11,8 @@ import os
 import argh
 import requests
 
+logging.basicConfig(level=logging.INFO)
+
 
 def get_ip(hostname):
     """Run host to get ip."""
@@ -52,7 +54,7 @@ def platform():
         nice_name = make_unique_name(nice_name, names)
         names.append(nice_name)
         hosts_out.write(f"{nice_name} {ip}\n")
-        ssh_config_out.write(f"Host ssh_{nice_name}\n")
+        ssh_config_out.write(f"Host pl_{nice_name}\n")
         ssh_config_out.write(f"    HostName {ip}\n")
         ssh_config_out.write("    User root\n")
         ssh_config_out.write("    StrictHostKeyChecking no\n")
@@ -60,9 +62,8 @@ def platform():
         ssh_config_out.write("    UserKnownHostsFile /dev/null\n\n")
 
 
-def workspaces():
+def workspaces(infile):
     """Open json file and write out workspaces_hosts.txt and workspaces_ssh_config.txt."""
-    infile = "workspaces.json"
     if not pathlib.Path(infile).exists():
         logging.fatal(f"Couldn't find {infile}.\n\nPlease see README.md\n")
         sys.exit(1)
@@ -70,8 +71,8 @@ def workspaces():
     with open(infile) as f:
         platform = json.load(f)
 
-    hosts_out = open("workspaces_hosts.txt", "w")
-    ssh_config_out = open("workspaces_ssh_config.txt", "w")
+    hosts_out = open(f"{infile}_hosts.txt", "w")
+    ssh_config_out = open(f"{infile}_ssh_config.txt", "w")
 
     names = list()
 
@@ -86,7 +87,7 @@ def workspaces():
         nice_name = make_unique_name(nice_name, names)
         names.append(nice_name)
         hosts_out.write(f"{nice_name} {ip}\n")
-        ssh_config_out.write(f"Host ssh_{nice_name}\n")
+        ssh_config_out.write(f"Host wk_{nice_name}\n")
         ssh_config_out.write(f"    HostName {ip}\n")
         ssh_config_out.write("    User root\n")
         ssh_config_out.write("    StrictHostKeyChecking no\n")
@@ -97,7 +98,7 @@ def workspaces():
 def deploy_ssh():
     """Move hosts to ssh config."""
     os.system("cat platform_ssh_config.txt > ~/.ssh/config")
-    os.system("cat workspaces_ssh_config.txt >> ~/.ssh/config")
+    os.system("cat workspaces*_ssh_config.txt >> ~/.ssh/config")
 
 
 def get_data():
@@ -108,24 +109,47 @@ def get_data():
             os.environ.get("P_USERNAME"), os.environ.get("P_PASSWORD")
         ),
     ).json()
-    w = requests.get(
+    w_dev = requests.get(
         'https://host-172-16-100-166.nubes.stfc.ac.uk/workspaces?max_results=500&where={"state":"CLAIMED"}',
         auth=requests.auth.HTTPBasicAuth(
-            os.environ.get("W_USERNAME"), os.environ.get("W_PASSWORD")
+            os.environ.get("W_DEV_USERNAME"), os.environ.get("W_DEV_PASSWORD")
+        ),
+    ).json()
+    w_prod = requests.get(
+        'https://host-172-16-105-103.nubes.stfc.ac.uk/workspaces?max_results=500&where={"state":"CLAIMED"}',
+        auth=requests.auth.HTTPBasicAuth(
+            os.environ.get("W_PROD_USERNAME"), os.environ.get("W_PROD_PASSWORD")
         ),
     ).json()
     with open("platform.json", "w") as f:
         f.write(json.dumps(p, indent=4))
-    with open("workspaces.json", "w") as f:
-        f.write(json.dumps(w, indent=4))
+    with open("workspaces-dev.json", "w") as f:
+        f.write(json.dumps(w_dev, indent=4))
+    with open("workspaces-prod.json", "w") as f:
+        f.write(json.dumps(w_prod, indent=4))
 
 
 def go():
     """Get data and write to config."""
+    logging.info("Getting data from registers")
     get_data()
+    logging.info("OK")
+
+    logging.info("Parsing platform json")
     platform()
-    workspaces()
+    logging.info("OK")
+
+    logging.info("Parsing workspaces dev json")
+    workspaces("workspaces-dev.json")
+    logging.info("OK")
+
+    logging.info("Parsing workspaces prod json")
+    workspaces("workspaces-prod.json")
+    logging.info("OK")
+
+    logging.info("Writing SSH config")
     deploy_ssh()
+    logging.info("OK")
 
 
 if __name__ == "__main__":
