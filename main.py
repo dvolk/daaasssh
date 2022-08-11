@@ -1,5 +1,8 @@
 import json
+import logging
+import pathlib
 import subprocess
+import sys
 
 
 def get_ip(hostname):
@@ -7,6 +10,10 @@ def get_ip(hostname):
 
 
 def main():
+    if not pathlib.Path("platform.json").exists():
+        logging.fatal("Couldn't find ./platform.json.\n\nPlease see README.md\n")
+        sys.exit(1)
+
     with open("platform.json") as f:
         platform = json.load(f)
 
